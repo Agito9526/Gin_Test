@@ -50,6 +50,12 @@ func CreateUser(c *gin.Context) {
 
 // Login User
 func LoginUser(c *gin.Context) {
+	sessionId := middlewares.GetSession(c)
+	if sessionId != 0 {
+		c.JSON(http.StatusUnauthorized, "已登入")
+		return
+	}
+
 	name := c.PostForm("Name")
 	user := pojo.CheckFindByUserName(name)
 	if user.UserName == "" {
@@ -93,8 +99,7 @@ func CheckUserSession(c *gin.Context) {
 	}
 	Id := strconv.Itoa(sessionId)
 	user := pojo.FindByUserId(Id)
-	user.Password = ""
-	user.Salt = ""
+	// user.Password = ""
 	c.JSON(http.StatusOK, user)
 }
 
@@ -110,4 +115,34 @@ func DeleteUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "刪除成功",
 	})
+}
+
+func UpdateUser(c *gin.Context) {
+	user := pojo.User{}
+	err := c.BindJSON(&user)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, "Error")
+		return
+	}
+
+	sessionId := middlewares.GetSession(c)
+	Id := strconv.Itoa(sessionId)
+	selectUser := pojo.FindByUserId(Id)
+
+	data := []byte(user.Password + selectUser.Salt)
+	has := md5.Sum(data)
+	password := fmt.Sprintf("%x", has)
+	user.Password = password
+
+	if password == selectUser.Password {
+		c.JSON(http.StatusUnauthorized, "密碼重複")
+		return
+	}
+
+	user = pojo.UpdateUser(Id, user)
+	// if user.UserId == 0 {
+	// 	c.JSON(http.StatusNotFound, "NotFound")
+	// 	return
+	// }
+	c.JSON(http.StatusOK, user)
 }
